@@ -107,7 +107,7 @@ export class TelemetryEngine {
         url: config.endpoint,
         headers: config.headers,
       });
-      this.provider.addSpanProcessor(new BatchSpanProcessor(exporter));
+      this.provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
     }
 
     this.tracer = this.provider.getTracer('void-sdk', '0.1.0');
@@ -259,6 +259,16 @@ export class TelemetryEngine {
     const activeSpan = trace.getActiveSpan();
     if (activeSpan && value !== undefined && value !== null) {
       activeSpan.setAttribute(key, this.toAttributeValue(value));
+    }
+  }
+
+  async flush(): Promise<void> {
+    try {
+      if (this.provider) {
+        await this.provider.forceFlush();
+      }
+    } catch {
+      // Non-fatal flush error
     }
   }
 

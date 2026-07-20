@@ -58,6 +58,13 @@ export class VoidSDK {
   }
 
   /**
+   * Flushes any buffered telemetry spans to the collector.
+   */
+  async flush(): Promise<void> {
+    await telemetryEngine.flush();
+  }
+
+  /**
    * Flushes and shuts down the telemetry exporter.
    */
   async shutdown(): Promise<void> {
