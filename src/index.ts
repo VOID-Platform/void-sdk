@@ -3,7 +3,7 @@ import { VoidOptions, resolveConfig } from './config';
 import { telemetryEngine, AgentOptions, ToolOptions } from './telemetry';
 import { SEMCONV, SemConvKey } from './semconv';
 
-class VoidSDK {
+export class VoidSDK {
   /**
    * Initializes the VOID Telemetry SDK.
    */

@@ -87,5 +87,12 @@ describe('OTLP Telemetry Payload Integration Tests', () => {
     expect(tool2Span.attributes[SEMCONV.VOID_TOOL_RESULT]).toBe('success');
     expect(tool2Span.attributes[SEMCONV.INPUT_VALUE]).toContain('Alice');
     expect(tool2Span.parentSpanId).toBe(agentSpan.spanContext().spanId);
+
+    expect(executionLog).toEqual([
+      'agent-started',
+      'tool1-executed',
+      'tool2-executed',
+      'agent-finished',
+    ]);
   });
 });

@@ -1,5 +1,5 @@
 {
-  "name": "@void-ai/sdk",
+  "name": "@void-hq/sdk",
   "version": "0.1.0",
   "description": "Semantic instrumentation for AI agents built on OpenTelemetry",
   "main": "dist/index.js",

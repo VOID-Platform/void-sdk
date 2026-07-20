@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { InMemorySpanExporter } from '@opentelemetry/sdk-trace-base';
 import { voidSdk, SEMCONV } from '../../src/index';
 import { resolveConfig } from '../../src/config';
 import { telemetryEngine } from '../../src/telemetry';
