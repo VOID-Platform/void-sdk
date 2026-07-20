@@ -1,14 +1,18 @@
 import {
   trace,
+  context,
   Span,
   SpanStatusCode,
   Tracer,
   AttributeValue,
   Attributes,
 } from '@opentelemetry/api';
+import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
 import {
   BasicTracerProvider,
   BatchSpanProcessor,
+  SimpleSpanProcessor,
+  SpanExporter,
 } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { Resource } from '@opentelemetry/resources';
@@ -29,15 +33,64 @@ export interface ToolOptions {
   attributes?: Record<string, unknown>;
 }
 
+/**
+ * Safely serializes values to string without throwing on circular references or BigInts.
+ */
+function safeJsonStringify(val: unknown): string {
+  if (val === undefined || val === null) return String(val);
+  if (typeof val === 'string') return val;
+  if (typeof val === 'bigint' || typeof val === 'symbol' || typeof val === 'function') {
+    return String(val);
+  }
+  try {
+    const cache = new Set();
+    return JSON.stringify(val, (_key, value) => {
+      if (typeof value === 'bigint') return value.toString();
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) return '[Circular]';
+        cache.add(value);
+      }
+      return value;
+    });
+  } catch {
+    return String(val);
+  }
+}
+
 export class TelemetryEngine {
   private provider: BasicTracerProvider | null = null;
   private tracer: Tracer | null = null;
   private isInitialized = false;
+  private isDisabled = false;
+  private customExporter: SpanExporter | null = null;
   private exitHandlerRegistered = false;
 
+  /**
+   * For testing: allows overriding the exporter with an in-memory exporter.
+   */
+  setCustomExporter(exporter: SpanExporter | null): void {
+    this.customExporter = exporter;
+  }
+
   init(config: ResolvedVoidConfig): void {
-    if (this.isInitialized || config.disabled) {
+    this.isDisabled = config.disabled;
+
+    if (config.disabled) {
+      this.isInitialized = true;
       return;
+    }
+
+    if (this.isInitialized) {
+      return;
+    }
+
+    // Register AsyncHooksContextManager globally if not already active to guarantee context propagation across async spans
+    try {
+      const contextManager = new AsyncHooksContextManager();
+      contextManager.enable();
+      context.setGlobalContextManager(contextManager);
+    } catch {
+      // Context manager already enabled or initialized
     }
 
     const resource = new Resource({
@@ -45,33 +98,40 @@ export class TelemetryEngine {
       'service.environment': config.environment,
     });
 
-    const exporter = new OTLPTraceExporter({
-      url: config.endpoint,
-      headers: config.headers,
-    });
-
     this.provider = new BasicTracerProvider({ resource });
-    this.provider.addSpanProcessor(new BatchSpanProcessor(exporter));
-    this.provider.register();
 
-    this.tracer = trace.getTracer('void-sdk', '0.1.0');
+    if (this.customExporter) {
+      this.provider.addSpanProcessor(new SimpleSpanProcessor(this.customExporter));
+    } else {
+      const exporter = new OTLPTraceExporter({
+        url: config.endpoint,
+        headers: config.headers,
+      });
+      this.provider.addSpanProcessor(new BatchSpanProcessor(exporter));
+    }
+
+    this.tracer = this.provider.getTracer('void-sdk', '0.1.0');
     this.isInitialized = true;
 
     this.registerExitHandlers();
   }
 
-  getTracer(): Tracer {
-    if (!this.tracer) {
-      return trace.getTracer('void-sdk', '0.1.0');
-    }
-    return this.tracer;
+  getTracer(): Tracer | null {
+    if (this.isDisabled) return null;
+    if (this.tracer) return this.tracer;
+    return this.provider ? this.provider.getTracer('void-sdk', '0.1.0') : null;
   }
 
   async agent<T>(
     options: AgentOptions,
-    fn: (span: Span) => Promise<T> | T
+    fn: (span?: Span) => Promise<T> | T
   ): Promise<T> {
+    if (this.isDisabled) {
+      return fn();
+    }
+
     const tracer = this.getTracer();
+    if (!tracer) return fn();
 
     return tracer.startActiveSpan(options.name, async (span: Span) => {
       try {
@@ -106,9 +166,15 @@ export class TelemetryEngine {
 
   async tool<T>(
     options: ToolOptions,
-    fn: (span: Span) => Promise<T> | T
+    fn: (span?: Span) => Promise<T> | T
   ): Promise<T> {
+    if (this.isDisabled) {
+      return fn();
+    }
+
     const tracer = this.getTracer();
+    if (!tracer) return fn();
+
     const toolName = options.name || 'unnamed-tool';
 
     return tracer.startActiveSpan(toolName, async (span: Span) => {
@@ -117,12 +183,7 @@ export class TelemetryEngine {
         span.setAttribute(SEMCONV.VOID_TOOL_NAME, toolName);
 
         if (options.input !== undefined) {
-          span.setAttribute(
-            SEMCONV.INPUT_VALUE,
-            typeof options.input === 'string'
-              ? options.input
-              : JSON.stringify(options.input)
-          );
+          span.setAttribute(SEMCONV.INPUT_VALUE, safeJsonStringify(options.input));
         }
         if (options.attributes) {
           this.setAttributes(span, options.attributes);
@@ -131,10 +192,7 @@ export class TelemetryEngine {
         const result = await fn(span);
         span.setAttribute(SEMCONV.VOID_TOOL_RESULT, 'success');
         if (result !== undefined) {
-          span.setAttribute(
-            SEMCONV.OUTPUT_VALUE,
-            typeof result === 'string' ? result : JSON.stringify(result)
-          );
+          span.setAttribute(SEMCONV.OUTPUT_VALUE, safeJsonStringify(result));
         }
         span.setStatus({ code: SpanStatusCode.OK });
         return result;
@@ -154,10 +212,15 @@ export class TelemetryEngine {
 
   async span<T>(
     name: string,
-    fn: (span: Span) => Promise<T> | T,
+    fn: (span?: Span) => Promise<T> | T,
     attributes?: Record<string, unknown>
   ): Promise<T> {
+    if (this.isDisabled) {
+      return fn();
+    }
+
     const tracer = this.getTracer();
+    if (!tracer) return fn();
 
     return tracer.startActiveSpan(name, async (span: Span) => {
       try {
@@ -181,6 +244,7 @@ export class TelemetryEngine {
   }
 
   event(name: string, attributes?: Record<string, unknown>): void {
+    if (this.isDisabled) return;
     const activeSpan = trace.getActiveSpan();
     if (activeSpan) {
       activeSpan.addEvent(
@@ -191,6 +255,7 @@ export class TelemetryEngine {
   }
 
   setAttribute(key: string, value: unknown): void {
+    if (this.isDisabled) return;
     const activeSpan = trace.getActiveSpan();
     if (activeSpan && value !== undefined && value !== null) {
       activeSpan.setAttribute(key, this.toAttributeValue(value));
@@ -198,9 +263,15 @@ export class TelemetryEngine {
   }
 
   async shutdown(): Promise<void> {
-    if (this.provider) {
-      await this.provider.shutdown();
+    try {
+      if (this.provider) {
+        await this.provider.shutdown();
+      }
+    } catch {
+      // Non-fatal shutdown error
+    } finally {
       this.isInitialized = false;
+      this.isDisabled = false;
       this.provider = null;
       this.tracer = null;
     }
@@ -210,13 +281,18 @@ export class TelemetryEngine {
     if (this.exitHandlerRegistered || typeof process === 'undefined') return;
     this.exitHandlerRegistered = true;
 
-    const cleanup = () => {
+    process.once('beforeExit', () => {
       this.shutdown().catch(() => {});
+    });
+
+    const handleSignal = (code: number) => {
+      this.shutdown().finally(() => {
+        process.exit(code);
+      });
     };
 
-    process.once('beforeExit', cleanup);
-    process.once('SIGINT', cleanup);
-    process.once('SIGTERM', cleanup);
+    process.once('SIGINT', () => handleSignal(130));
+    process.once('SIGTERM', () => handleSignal(143));
   }
 
   private setAttributes(span: Span, attrs: Record<string, unknown>): void {
@@ -241,7 +317,7 @@ export class TelemetryEngine {
       if (value.every((item) => typeof item === 'boolean')) return value as boolean[];
       return value.map((item) => String(item));
     }
-    return JSON.stringify(value);
+    return safeJsonStringify(value);
   }
 
   private toAttributes(attrs: Record<string, unknown>): Attributes {

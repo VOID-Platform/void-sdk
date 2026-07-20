@@ -1,9 +1,9 @@
 import { Span } from '@opentelemetry/api';
 import { VoidOptions, resolveConfig } from './config';
 import { telemetryEngine, AgentOptions, ToolOptions } from './telemetry';
-import { SEMCONV } from './semconv';
+import { SEMCONV, SemConvKey } from './semconv';
 
-export class VoidSDK {
+class VoidSDK {
   /**
    * Initializes the VOID Telemetry SDK.
    */
@@ -17,7 +17,7 @@ export class VoidSDK {
    */
   async agent<T>(
     options: AgentOptions,
-    fn: (span: Span) => Promise<T> | T
+    fn: (span?: Span) => Promise<T> | T
   ): Promise<T> {
     return telemetryEngine.agent(options, fn);
   }
@@ -27,7 +27,7 @@ export class VoidSDK {
    */
   async tool<T>(
     options: ToolOptions,
-    fn: (span: Span) => Promise<T> | T
+    fn: (span?: Span) => Promise<T> | T
   ): Promise<T> {
     return telemetryEngine.tool(options, fn);
   }
@@ -37,7 +37,7 @@ export class VoidSDK {
    */
   async span<T>(
     name: string,
-    fn: (span: Span) => Promise<T> | T,
+    fn: (span?: Span) => Promise<T> | T,
     attributes?: Record<string, unknown>
   ): Promise<T> {
     return telemetryEngine.span(name, fn, attributes);
@@ -67,8 +67,9 @@ export class VoidSDK {
 
 export const voidSdk = new VoidSDK();
 
-// Exports
+// Public Exports
 export { SEMCONV };
+export type { SemConvKey };
 export type { VoidOptions, OTLPOptions, ResolvedVoidConfig } from './config';
 export type { AgentOptions, ToolOptions } from './telemetry';
 export default voidSdk;

@@ -20,6 +20,7 @@ export interface ResolvedVoidConfig {
 
 /**
  * Resolves SDK configuration merging user options with environment variable defaults.
+ * Precedence: Explicit options > Signal-specific env > Global env > Built-in defaults.
  */
 export function resolveConfig(options: VoidOptions = {}): ResolvedVoidConfig {
   const env = typeof process !== 'undefined' ? process.env : {};
@@ -36,29 +37,40 @@ export function resolveConfig(options: VoidOptions = {}): ResolvedVoidConfig {
     env.NODE_ENV ||
     'development';
 
-  let endpoint =
-    options.otlp?.endpoint ||
-    env.VOID_OTLP_ENDPOINT ||
-    env.OTEL_EXPORTER_OTLP_ENDPOINT ||
-    'http://localhost:4318/v1/traces';
+  // Endpoint resolution hierarchy
+  let endpoint = options.otlp?.endpoint || env.VOID_OTLP_ENDPOINT;
 
-  // Ensure endpoint ends with /v1/traces if port 4318 without explicit path
-  if (endpoint.endsWith(':4318') || endpoint.endsWith(':4318/')) {
-    endpoint = endpoint.replace(/\/$/, '') + '/v1/traces';
+  if (!endpoint) {
+    if (env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT) {
+      endpoint = env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
+    } else if (env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+      // Global OTel base endpoint gets /v1/traces per OpenTelemetry OTLP HTTP specification
+      const base = env.OTEL_EXPORTER_OTLP_ENDPOINT.replace(/\/+$/, '');
+      endpoint = base.endsWith('/v1/traces') ? base : `${base}/v1/traces`;
+    } else {
+      endpoint = 'http://localhost:4318/v1/traces';
+    }
   }
 
-  const headers: Record<string, string> = {
-    ...options.otlp?.headers,
-  };
+  // Header resolution: Environment headers act as defaults; explicit options override them.
+  const headers: Record<string, string> = {};
 
   if (env.VOID_OTLP_HEADERS) {
     const pairs = env.VOID_OTLP_HEADERS.split(',');
     for (const pair of pairs) {
-      const [key, val] = pair.split('=').map((s) => s.trim());
-      if (key && val) {
-        headers[key] = val;
+      const eqIdx = pair.indexOf('=');
+      if (eqIdx > 0) {
+        const key = pair.slice(0, eqIdx).trim();
+        const val = pair.slice(eqIdx + 1).trim();
+        if (key && val) {
+          headers[key] = val;
+        }
       }
     }
+  }
+
+  if (options.otlp?.headers) {
+    Object.assign(headers, options.otlp.headers);
   }
 
   return {

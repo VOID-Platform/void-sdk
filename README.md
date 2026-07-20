@@ -47,8 +47,6 @@ flowchart TD
 
 ## 5-Minute Developer Quickstart
 
-The SDK requires zero low-level OpenTelemetry setup. Node.js process exit listeners automatically flush pending spans, so calling `voidSdk.shutdown()` is optional.
-
 ```typescript
 import { voidSdk } from '@void-ai/sdk';
 
@@ -76,7 +74,13 @@ const response = await voidSdk.agent(
     return tx;
   }
 );
+
+// 5. Graceful Teardown (Required prior to explicit process.exit())
+await voidSdk.shutdown();
 ```
+
+> [!TIP]  
+> The SDK registers process exit handlers for `SIGINT` and `SIGTERM`. If your process is terminated by standard system signals, pending spans are flushed automatically. Call `await voidSdk.shutdown()` before explicit `process.exit()` calls or in serverless environments.
 
 ---
 
@@ -93,7 +97,7 @@ src/
 ### Module Responsibilities
 
 - **`index.ts`**: Developer facade exposing `init()`, `agent()`, `tool()`, `span()`, `event()`, `setAttribute()`, and `shutdown()`.
-- **`telemetry.ts`**: Uses `tracer.startActiveSpan()` with Node's `AsyncLocalStorage` context to manage parent-child span nesting, status code recording, exception capturing, and `SIGINT`/`SIGTERM`/`beforeExit` process exit flushing.
+- **`telemetry.ts`**: Uses `tracer.startActiveSpan()` with Node's `AsyncHooksContextManager` to manage parent-child span nesting, status code recording, exception capturing, and signal process exit flushing.
 - **`semconv.ts`**: Unified attribute key dictionary (`gen_ai.system`, `openinference.span.kind`, `void.agent.name`, `void.tool.name`, `void.tool.result`, `void.prompt.version`).
 - **`config.ts`**: Resolves explicit options with `VOID_*` and `OTEL_*` environment variable fallbacks.
 
@@ -120,13 +124,15 @@ export VOID_OTLP_ENDPOINT="http://localhost:4318/v1/traces"
 ```
 
 ### SigNoz Cloud
+SigNoz Cloud uses the standard `signoz-ingestion-key` header:
+
 ```typescript
 await voidSdk.init({
   serviceName: 'production-agent',
   otlp: {
     endpoint: 'https://ingest.us.signoz.cloud:443/v1/traces',
     headers: {
-      'signoz-access-token': process.env.SIGNOZ_INGEST_KEY!,
+      'signoz-ingestion-key': process.env.SIGNOZ_INGESTION_KEY!,
     },
   },
 });
@@ -136,14 +142,16 @@ await voidSdk.init({
 
 ## Framework Agnostic
 
-The VOID SDK is **100% agent framework agnostic**. It can be used seamlessly with **LangChain, CrewAI, PydanticAI, Vercel AI SDK, LlamaIndex**, or custom async code:
+The VOID SDK is **100% agent framework agnostic**. It works seamlessly with **LangChain.js, Vercel AI SDK, AutoGen.js**, or custom TypeScript/JavaScript agent loops:
 
 ```typescript
-// Example with LangChain / Custom Async Function
+// Example with LangChain.js / Custom Async Function
 await voidSdk.agent({ name: 'LangChainAgent' }, async () => {
   return await agentExecutor.invoke({ input: 'Process refund' });
 });
 ```
+
+*(For Python agents using CrewAI or PydanticAI, use OpenTelemetry Python OTLP exporters emitting standard `openinference.*` and `void.*` attributes).*
 
 ---
 
@@ -169,6 +177,8 @@ flowchart TD
 
 ## Building & Testing
 
+Unit and integration tests use an in-memory exporter and require **zero external running services**:
+
 ```bash
 # Typecheck TypeScript
 npm run typecheck
@@ -176,7 +186,7 @@ npm run typecheck
 # Build ESM & CommonJS bundles via tsup
 npm run build
 
-# Run Vitest unit & integration test suite
+# Run Vitest unit & integration test suite (fully self-contained)
 npm test
 ```
 
