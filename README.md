@@ -2,14 +2,14 @@
 
 > **OpenTelemetry-Native Telemetry SDK for AI Agents**
 
-`@void-hq/sdk` is a lightweight, zero-dependency vendor-neutral SDK that automatically instruments AI Agent execution loops, tool calls, and prompt reasoning pipelines. It emits standard OpenTelemetry (OTLP) trace streams directly to **SigNoz Cloud**, **Self-Hosted SigNoz**, or any OTLP-compliant collector.
+`@void-hq/sdk` is a lightweight, vendor-neutral SDK with explicit wrappers (`agent()`, `tool()`) to instrument AI Agent execution loops, tool calls, and prompt reasoning pipelines. It emits standard OpenTelemetry (OTLP) trace streams directly to **SigNoz Cloud**, **Self-Hosted SigNoz**, or any OTLP-compliant collector.
 
 ---
 
 ## Features
 
 - 🤖 **AI-Native Instrumentation**: First-class abstractions for `agent()`, `tool()`, `span()`, and `event()`.
-- ⚡ **OpenTelemetry Native**: Native OTLP/HTTP exporter sending spans according to `openinference` and GenAI semantic conventions.
+- ⚡ **OpenTelemetry Native**: Native OTLP/HTTP exporter sending spans with `openinference` span kinds and `void.*` telemetry attributes, plus `SEMCONV` constants for GenAI semantic conventions.
 - 🎯 **SigNoz Ready**: Native support for SigNoz Cloud (ingestion key headers) and Self-Hosted SigNoz instances.
 - 🛡️ **Fail-Safe Execution**: Zero-impact error isolation ensures telemetry errors never break production agent loops.
 - 📦 **Circular & BigInt Safe**: Handles circular JSON references, functions, symbols, and BigInt values without throwing.
