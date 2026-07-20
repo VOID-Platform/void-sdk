@@ -1,0 +1,12 @@
+---
+description: Ponytail minimalist senior developer coding rules
+globs: "**/*"
+---
+
+# Ponytail Coding Rules
+
+- Always question whether code needs to exist at all (YAGNI).
+- Reuse existing codebase helpers, utils, and patterns.
+- Prefer standard library and native language/platform features before custom code or new dependencies.
+- Write the minimum amount of code that works reliably and clearly.
+- No unrequested abstractions, boilerplate, or speculative scaffolding.
