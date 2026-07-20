@@ -1,18 +1,27 @@
 import {
   trace,
+<<<<<<< HEAD
   context,
+=======
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
   Span,
   SpanStatusCode,
   Tracer,
   AttributeValue,
   Attributes,
 } from '@opentelemetry/api';
+<<<<<<< HEAD
 import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
 import {
   BasicTracerProvider,
   BatchSpanProcessor,
   SimpleSpanProcessor,
   SpanExporter,
+=======
+import {
+  BasicTracerProvider,
+  BatchSpanProcessor,
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
 } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { Resource } from '@opentelemetry/resources';
@@ -33,6 +42,7 @@ export interface ToolOptions {
   attributes?: Record<string, unknown>;
 }
 
+<<<<<<< HEAD
 /**
  * Safely serializes values to string without throwing on circular references or BigInts.
  */
@@ -57,10 +67,13 @@ function safeJsonStringify(val: unknown): string {
   }
 }
 
+=======
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
 export class TelemetryEngine {
   private provider: BasicTracerProvider | null = null;
   private tracer: Tracer | null = null;
   private isInitialized = false;
+<<<<<<< HEAD
   private isDisabled = false;
   private customExporter: SpanExporter | null = null;
   private exitHandlerRegistered = false;
@@ -93,11 +106,21 @@ export class TelemetryEngine {
       // Context manager already enabled or initialized
     }
 
+=======
+  private exitHandlerRegistered = false;
+
+  init(config: ResolvedVoidConfig): void {
+    if (this.isInitialized || config.disabled) {
+      return;
+    }
+
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
     const resource = new Resource({
       [ATTR_SERVICE_NAME]: config.serviceName,
       'service.environment': config.environment,
     });
 
+<<<<<<< HEAD
     this.provider = new BasicTracerProvider({ resource });
 
     if (this.customExporter) {
@@ -111,19 +134,40 @@ export class TelemetryEngine {
     }
 
     this.tracer = this.provider.getTracer('void-sdk', '0.1.0');
+=======
+    const exporter = new OTLPTraceExporter({
+      url: config.endpoint,
+      headers: config.headers,
+    });
+
+    this.provider = new BasicTracerProvider({ resource });
+    this.provider.addSpanProcessor(new BatchSpanProcessor(exporter));
+    this.provider.register();
+
+    this.tracer = trace.getTracer('void-sdk', '0.1.0');
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
     this.isInitialized = true;
 
     this.registerExitHandlers();
   }
 
+<<<<<<< HEAD
   getTracer(): Tracer | null {
     if (this.isDisabled) return null;
     if (this.tracer) return this.tracer;
     return this.provider ? this.provider.getTracer('void-sdk', '0.1.0') : null;
+=======
+  getTracer(): Tracer {
+    if (!this.tracer) {
+      return trace.getTracer('void-sdk', '0.1.0');
+    }
+    return this.tracer;
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
   }
 
   async agent<T>(
     options: AgentOptions,
+<<<<<<< HEAD
     fn: (span?: Span) => Promise<T> | T
   ): Promise<T> {
     if (this.isDisabled) {
@@ -132,6 +176,11 @@ export class TelemetryEngine {
 
     const tracer = this.getTracer();
     if (!tracer) return fn();
+=======
+    fn: (span: Span) => Promise<T> | T
+  ): Promise<T> {
+    const tracer = this.getTracer();
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
 
     return tracer.startActiveSpan(options.name, async (span: Span) => {
       try {
@@ -166,6 +215,7 @@ export class TelemetryEngine {
 
   async tool<T>(
     options: ToolOptions,
+<<<<<<< HEAD
     fn: (span?: Span) => Promise<T> | T
   ): Promise<T> {
     if (this.isDisabled) {
@@ -175,6 +225,11 @@ export class TelemetryEngine {
     const tracer = this.getTracer();
     if (!tracer) return fn();
 
+=======
+    fn: (span: Span) => Promise<T> | T
+  ): Promise<T> {
+    const tracer = this.getTracer();
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
     const toolName = options.name || 'unnamed-tool';
 
     return tracer.startActiveSpan(toolName, async (span: Span) => {
@@ -183,7 +238,16 @@ export class TelemetryEngine {
         span.setAttribute(SEMCONV.VOID_TOOL_NAME, toolName);
 
         if (options.input !== undefined) {
+<<<<<<< HEAD
           span.setAttribute(SEMCONV.INPUT_VALUE, safeJsonStringify(options.input));
+=======
+          span.setAttribute(
+            SEMCONV.INPUT_VALUE,
+            typeof options.input === 'string'
+              ? options.input
+              : JSON.stringify(options.input)
+          );
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
         }
         if (options.attributes) {
           this.setAttributes(span, options.attributes);
@@ -192,7 +256,14 @@ export class TelemetryEngine {
         const result = await fn(span);
         span.setAttribute(SEMCONV.VOID_TOOL_RESULT, 'success');
         if (result !== undefined) {
+<<<<<<< HEAD
           span.setAttribute(SEMCONV.OUTPUT_VALUE, safeJsonStringify(result));
+=======
+          span.setAttribute(
+            SEMCONV.OUTPUT_VALUE,
+            typeof result === 'string' ? result : JSON.stringify(result)
+          );
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
         }
         span.setStatus({ code: SpanStatusCode.OK });
         return result;
@@ -212,6 +283,7 @@ export class TelemetryEngine {
 
   async span<T>(
     name: string,
+<<<<<<< HEAD
     fn: (span?: Span) => Promise<T> | T,
     attributes?: Record<string, unknown>
   ): Promise<T> {
@@ -221,6 +293,12 @@ export class TelemetryEngine {
 
     const tracer = this.getTracer();
     if (!tracer) return fn();
+=======
+    fn: (span: Span) => Promise<T> | T,
+    attributes?: Record<string, unknown>
+  ): Promise<T> {
+    const tracer = this.getTracer();
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
 
     return tracer.startActiveSpan(name, async (span: Span) => {
       try {
@@ -244,7 +322,10 @@ export class TelemetryEngine {
   }
 
   event(name: string, attributes?: Record<string, unknown>): void {
+<<<<<<< HEAD
     if (this.isDisabled) return;
+=======
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
     const activeSpan = trace.getActiveSpan();
     if (activeSpan) {
       activeSpan.addEvent(
@@ -255,7 +336,10 @@ export class TelemetryEngine {
   }
 
   setAttribute(key: string, value: unknown): void {
+<<<<<<< HEAD
     if (this.isDisabled) return;
+=======
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
     const activeSpan = trace.getActiveSpan();
     if (activeSpan && value !== undefined && value !== null) {
       activeSpan.setAttribute(key, this.toAttributeValue(value));
@@ -263,6 +347,7 @@ export class TelemetryEngine {
   }
 
   async shutdown(): Promise<void> {
+<<<<<<< HEAD
     try {
       if (this.provider) {
         await this.provider.shutdown();
@@ -272,6 +357,11 @@ export class TelemetryEngine {
     } finally {
       this.isInitialized = false;
       this.isDisabled = false;
+=======
+    if (this.provider) {
+      await this.provider.shutdown();
+      this.isInitialized = false;
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
       this.provider = null;
       this.tracer = null;
     }
@@ -281,6 +371,7 @@ export class TelemetryEngine {
     if (this.exitHandlerRegistered || typeof process === 'undefined') return;
     this.exitHandlerRegistered = true;
 
+<<<<<<< HEAD
     process.once('beforeExit', () => {
       this.shutdown().catch(() => {});
     });
@@ -293,6 +384,15 @@ export class TelemetryEngine {
 
     process.once('SIGINT', () => handleSignal(130));
     process.once('SIGTERM', () => handleSignal(143));
+=======
+    const cleanup = () => {
+      this.shutdown().catch(() => {});
+    };
+
+    process.once('beforeExit', cleanup);
+    process.once('SIGINT', cleanup);
+    process.once('SIGTERM', cleanup);
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
   }
 
   private setAttributes(span: Span, attrs: Record<string, unknown>): void {
@@ -317,7 +417,11 @@ export class TelemetryEngine {
       if (value.every((item) => typeof item === 'boolean')) return value as boolean[];
       return value.map((item) => String(item));
     }
+<<<<<<< HEAD
     return safeJsonStringify(value);
+=======
+    return JSON.stringify(value);
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
   }
 
   private toAttributes(attrs: Record<string, unknown>): Attributes {

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { InMemorySpanExporter } from '@opentelemetry/sdk-trace-base';
 import { voidSdk, SEMCONV } from '../../src/index';
@@ -22,6 +23,25 @@ describe('OTLP Telemetry Payload Integration Tests', () => {
   });
 
   it('should generate valid OpenTelemetry spans with void.* and openinference.* attributes', async () => {
+=======
+import { describe, it, expect, afterEach } from 'vitest';
+import { voidSdk } from '../../src/index';
+
+describe('OTLP Telemetry Payload Integration Tests', () => {
+  afterEach(async () => {
+    await voidSdk.shutdown();
+  });
+
+  it('should initialize and execute nested agent & tool spans', async () => {
+    await voidSdk.init({
+      serviceName: 'integration-test-service',
+      environment: 'test',
+      otlp: {
+        endpoint: 'http://localhost:4318',
+      },
+    });
+
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
     const executionLog: string[] = [];
 
     const finalResult = await voidSdk.agent(
@@ -56,6 +76,7 @@ describe('OTLP Telemetry Payload Integration Tests', () => {
 
     expect(finalResult.tool1Result.name).toBe('Alice');
     expect(finalResult.tool2Result).toBe(true);
+<<<<<<< HEAD
 
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(3); // 1 Agent Span + 2 Tool Spans
@@ -87,5 +108,13 @@ describe('OTLP Telemetry Payload Integration Tests', () => {
     expect(tool2Span.attributes[SEMCONV.VOID_TOOL_RESULT]).toBe('success');
     expect(tool2Span.attributes[SEMCONV.INPUT_VALUE]).toContain('Alice');
     expect(tool2Span.parentSpanId).toBe(agentSpan.spanContext().spanId);
+=======
+    expect(executionLog).toEqual([
+      'agent-started',
+      'tool1-executed',
+      'tool2-executed',
+      'agent-finished',
+    ]);
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
   });
 });

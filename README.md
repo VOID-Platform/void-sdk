@@ -47,6 +47,11 @@ flowchart TD
 
 ## 5-Minute Developer Quickstart
 
+<<<<<<< HEAD
+=======
+The SDK requires zero low-level OpenTelemetry setup. Node.js process exit listeners automatically flush pending spans, so calling `voidSdk.shutdown()` is optional.
+
+>>>>>>> 15914ef (feat(sdk) : implemented sdk)
 ```typescript
 import { voidSdk } from '@void-ai/sdk';
 
